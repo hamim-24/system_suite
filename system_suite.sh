@@ -1933,6 +1933,9 @@ file_finder_fzf() {
       read -e -r search_dir
       search_dir=${search_dir:-${HOME}}
       
+      # Expand tilde to home directory
+      search_dir=${search_dir/#\~/${HOME}}
+      
       if [[ ! -d ${search_dir} ]]; then
         notify_warn "Directory does not exist: ${search_dir}"
         pause
@@ -1964,6 +1967,9 @@ file_finder_fzf() {
       read -e -r search_dir
       search_dir=${search_dir:-${HOME}}
       
+      # Expand tilde to home directory
+      search_dir=${search_dir/#\~/${HOME}}
+      
       if [[ ! -d ${search_dir} ]]; then
         notify_warn "Directory does not exist: ${search_dir}"
         pause
@@ -1988,6 +1994,9 @@ file_finder_fzf() {
       printf "Search directory (default: ${HOME}) [Tab for completion]: "
       read -e -r search_dir
       search_dir=${search_dir:-${HOME}}
+      
+      # Expand tilde to home directory
+      search_dir=${search_dir/#\~/${HOME}}
       
       if [[ ! -d ${search_dir} ]]; then
         notify_warn "Directory does not exist: ${search_dir}"
