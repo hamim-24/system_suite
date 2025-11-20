@@ -1713,16 +1713,147 @@ service_manager() {
 #############################
 # Battery Health
 #############################
+get_battery_info() {
+  case "${OS}" in
+    "macOS")
+      if command -v pmset >/dev/null 2>&1; then
+        local battery_info
+        battery_info=$(pmset -g batt 2>/dev/null)
+        if [[ -n ${battery_info} ]]; then
+          echo "${battery_info}"
+          
+          # Get additional battery health info
+          if command -v system_profiler >/dev/null 2>&1; then
+            printf "\n${COLOR_HILIGHT}Detailed Battery Information:${COLOR_RESET}\n"
+            system_profiler SPPowerDataType 2>/dev/null | grep -E 'Cycle Count|Condition|Full Charge Capacity|Health Information' || true
+          fi
+          
+          # Parse battery percentage and status
+          local percentage status
+          percentage=$(echo "${battery_info}" | grep -o '[0-9]*%' | head -1 | tr -d '%')
+          status=$(echo "${battery_info}" | grep -o 'charging\|discharging\|charged\|AC Power' | head -1)
+          
+          if [[ -n ${percentage} ]]; then
+            printf "\n${COLOR_HILIGHT}Battery Assessment:${COLOR_RESET}\n"
+            if [[ ${percentage} -ge 80 ]]; then
+              printf "${COLOR_SUCCESS}Battery Level: Excellent (${percentage}%%)${COLOR_RESET}\n"
+            elif [[ ${percentage} -ge 50 ]]; then
+              printf "${COLOR_SUCCESS}Battery Level: Good (${percentage}%%)${COLOR_RESET}\n"
+            elif [[ ${percentage} -ge 20 ]]; then
+              printf "${COLOR_WARN}Battery Level: Low (${percentage}%%)${COLOR_RESET}\n"
+            else
+              printf "${COLOR_WARN}Battery Level: Critical (${percentage}%%)${COLOR_RESET}\n"
+            fi
+            
+            if [[ -n ${status} ]]; then
+              printf "${COLOR_INFO}Status: ${status}${COLOR_RESET}\n"
+            fi
+          fi
+        else
+          printf "${COLOR_WARN}No battery information available${COLOR_RESET}\n"
+        fi
+      else
+        printf "${COLOR_WARN}pmset command not available${COLOR_RESET}\n"
+      fi
+      ;;
+    "Linux"|"WSL")
+      if command -v upower >/dev/null 2>&1; then
+        printf "${COLOR_HILIGHT}Battery Information (upower):${COLOR_RESET}\n"
+        local battery_info
+        battery_info=$(upower -i /org/freedesktop/UPower/devices/battery_BAT0 2>/dev/null)
+        if [[ -n ${battery_info} ]]; then
+          echo "${battery_info}" | grep -E 'state|percentage|capacity|health|technology|energy'
+          
+          # Parse percentage for assessment
+          local percentage
+          percentage=$(echo "${battery_info}" | grep 'percentage' | grep -o '[0-9]*' | head -1)
+          if [[ -n ${percentage} ]]; then
+            printf "\n${COLOR_HILIGHT}Battery Assessment:${COLOR_RESET}\n"
+            if [[ ${percentage} -ge 80 ]]; then
+              printf "${COLOR_SUCCESS}Battery Level: Excellent (${percentage}%%)${COLOR_RESET}\n"
+            elif [[ ${percentage} -ge 50 ]]; then
+              printf "${COLOR_SUCCESS}Battery Level: Good (${percentage}%%)${COLOR_RESET}\n"
+            elif [[ ${percentage} -ge 20 ]]; then
+              printf "${COLOR_WARN}Battery Level: Low (${percentage}%%)${COLOR_RESET}\n"
+            else
+              printf "${COLOR_WARN}Battery Level: Critical (${percentage}%%)${COLOR_RESET}\n"
+            fi
+          fi
+        else
+          # Try alternative battery paths
+          local alt_battery
+          alt_battery=$(upower -i /org/freedesktop/UPower/devices/battery_BAT1 2>/dev/null)
+          if [[ -n ${alt_battery} ]]; then
+            echo "${alt_battery}" | grep -E 'state|percentage|capacity|health'
+          else
+            printf "${COLOR_WARN}No battery found${COLOR_RESET}\n"
+          fi
+        fi
+      elif [[ -r /sys/class/power_supply/BAT0/capacity ]]; then
+        printf "${COLOR_HILIGHT}Battery Information (/sys):${COLOR_RESET}\n"
+        local capacity status
+        capacity=$(cat /sys/class/power_supply/BAT0/capacity 2>/dev/null)
+        status=$(cat /sys/class/power_supply/BAT0/status 2>/dev/null)
+        
+        if [[ -n ${capacity} ]]; then
+          printf "Capacity: ${capacity}%%\n"
+          printf "Status: ${status}\n"
+          
+          printf "\n${COLOR_HILIGHT}Battery Assessment:${COLOR_RESET}\n"
+          if [[ ${capacity} -ge 80 ]]; then
+            printf "${COLOR_SUCCESS}Battery Level: Excellent (${capacity}%%)${COLOR_RESET}\n"
+          elif [[ ${capacity} -ge 50 ]]; then
+            printf "${COLOR_SUCCESS}Battery Level: Good (${capacity}%%)${COLOR_RESET}\n"
+          elif [[ ${capacity} -ge 20 ]]; then
+            printf "${COLOR_WARN}Battery Level: Low (${capacity}%%)${COLOR_RESET}\n"
+          else
+            printf "${COLOR_WARN}Battery Level: Critical (${capacity}%%)${COLOR_RESET}\n"
+          fi
+        else
+          printf "${COLOR_WARN}Unable to read battery information${COLOR_RESET}\n"
+        fi
+      else
+        printf "${COLOR_WARN}No battery information available${COLOR_RESET}\n"
+      fi
+      ;;
+    *)
+      printf "${COLOR_WARN}Battery monitoring not supported on ${OS}${COLOR_RESET}\n"
+      ;;
+  esac
+}
+
 battery_health() {
   clear_screen
   print_menu_header
-  if [[ ${OS} == "macOS" ]]; then
-    pmset -g batt
-  elif command -v upower >/dev/null 2>&1; then
-    upower -i /org/freedesktop/UPower/devices/battery_BAT0 | grep -E 'state|to empty|percentage|capacity'
-  else
-    printf "Battery data unavailable.\n"
-  fi
+  
+  printf "${COLOR_INFO}Battery Health Monitor${COLOR_RESET}\n\n"
+  
+  # Check if system has a battery
+  case "${OS}" in
+    "macOS")
+      if ! pmset -g batt 2>/dev/null | grep -q 'Battery\|InternalBattery'; then
+        printf "${COLOR_WARN}No battery detected (desktop system?)${COLOR_RESET}\n"
+        pause
+        return
+      fi
+      ;;
+    "Linux"|"WSL")
+      if [[ ! -d /sys/class/power_supply/BAT0 ]] && ! command -v upower >/dev/null 2>&1; then
+        printf "${COLOR_WARN}No battery detected or upower not available${COLOR_RESET}\n"
+        pause
+        return
+      fi
+      ;;
+  esac
+  
+  get_battery_info
+  
+  printf "\n${COLOR_INFO}Battery Tips:${COLOR_RESET}\n"
+  printf "• Keep battery between 20-80%% for optimal health\n"
+  printf "• Avoid extreme temperatures\n"
+  printf "• Calibrate battery monthly (full discharge/charge)\n"
+  printf "• Use original charger when possible\n"
+  
   pause
 }
 
@@ -1736,10 +1867,43 @@ log_analyzer() {
   printf "Log file path [Tab for completion]: "
   read -e -r log_path || return
   [[ -z ${log_path} ]] && { notify_warn "No file path provided"; pause; return; }
+  
+  # Expand tilde to home directory
+  log_path=${log_path/#\~/${HOME}}
+  
+  # Convert relative path to absolute path
+  if [[ ${log_path} != /* ]]; then
+    log_path="${PWD}/${log_path}"
+  fi
+  
+  # Try alternative paths if file doesn't exist
   if [[ ! -f ${log_path} ]]; then
-    notify_warn "File does not exist: ${log_path}"
-    pause
-    return
+    local alt_paths=(
+      "${HOME}/${log_path##*/}"  # Just filename in home
+      "${HOME}/Developer/Shell/Shell/${log_path##*/}"  # Common shell script location
+      "${PWD}/../Shell/${log_path##*/}"  # Sibling Shell directory
+    )
+    
+    local found=false
+    for alt_path in "${alt_paths[@]}"; do
+      if [[ -f ${alt_path} ]]; then
+        log_path="${alt_path}"
+        printf "${COLOR_INFO}Found file at: ${log_path}${COLOR_RESET}\n"
+        found=true
+        break
+      fi
+    done
+    
+    if [[ ${found} == false ]]; then
+      notify_warn "File does not exist: ${log_path}"
+      printf "${COLOR_INFO}Tried locations:${COLOR_RESET}\n"
+      printf "  - %s\n" "${log_path}"
+      for alt_path in "${alt_paths[@]}"; do
+        printf "  - %s\n" "${alt_path}"
+      done
+      pause
+      return
+    fi
   fi
   if [[ ! -r ${log_path} ]]; then
     notify_warn "File is not readable: ${log_path}"
@@ -1858,10 +2022,10 @@ fzf_search() {
   
   if [[ -n ${file_types} ]]; then
     case "${file_types}" in
-      "text") fzf_cmd+" \\( -name '*.txt' -o -name '*.md' -o -name '*.log' \\)" ;;
-      "code") fzf_cmd+" \\( -name '*.py' -o -name '*.js' -o -name '*.sh' -o -name '*.c' -o -name '*.cpp' -o -name '*.java' \\)" ;;
-      "config") fzf_cmd+" \\( -name '*.conf' -o -name '*.cfg' -o -name '*.ini' -o -name '*.json' -o -name '*.yaml' -o -name '*.yml' \\)" ;;
-      "image") fzf_cmd+" \\( -name '*.jpg' -o -name '*.png' -o -name '*.gif' -o -name '*.bmp' -o -name '*.svg' \\)" ;;
+      "text") fzf_cmd+=" \\( -name '*.txt' -o -name '*.md' -o -name '*.log' \\)" ;;
+      "code") fzf_cmd+=" \\( -name '*.py' -o -name '*.js' -o -name '*.sh' -o -name '*.c' -o -name '*.cpp' -o -name '*.java' \\)" ;;
+      "config") fzf_cmd+=" \\( -name '*.conf' -o -name '*.cfg' -o -name '*.ini' -o -name '*.json' -o -name '*.yaml' -o -name '*.yml' \\)" ;;
+      "image") fzf_cmd+=" \\( -name '*.jpg' -o -name '*.png' -o -name '*.gif' -o -name '*.bmp' -o -name '*.svg' \\)" ;;
     esac
   fi
   
