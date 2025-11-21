@@ -268,6 +268,7 @@ print_menu_header() {
   print_rule
   print_centered "${SCRIPT_NAME} v${SCRIPT_VERSION}"
   print_centered "${OS} :: ${PKG_MANAGER}"
+  print_centered "Created By :: Md Inzamamul Lohani"
   print_rule
 }
 
