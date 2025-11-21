@@ -2,6 +2,8 @@
 
 A comprehensive terminal-based system maintenance and monitoring toolkit for macOS, Linux, and Unix-like systems.
 
+YouTube: https://youtu.be/W2TKm4A-wA8
+
 ## Features
 
 ### 🖥️ System Monitoring
