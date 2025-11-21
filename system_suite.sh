@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# System Maintenance & Optimization Suite
-# Description: Terminal-based TUI toolkit for monitoring, cleanup, updates, backups, and diagnostics.
 
 set -euo pipefail
 IFS=$'\n\t'
