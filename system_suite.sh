@@ -6,7 +6,7 @@ IFS=$'\n\t'
 #############################
 # Global Configuration
 #############################
-SCRIPT_VERSION="1.0.1"
+SCRIPT_VERSION="1.0.4"
 SCRIPT_NAME="System Suite"
 CONFIG_DIR="${HOME}/.config/system_suite"
 DATA_DIR="${HOME}/.local/share/system_suite"
